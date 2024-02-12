@@ -77,25 +77,26 @@ def get_positional_embeddings(sequence_length, d):
         return result
 
 class MyViT(nn.Module):
-    def __init__(self, input_shape, n_patches=7, hidden_d=64, n_heads=2, out_d=10):
+    def __init__(self,  n_patches=7, hidden_d=64, n_heads=2, out_d=10):
         # Super constructor
         super(MyViT, self).__init__()
 
         # Input and patches sizes
-        # input_shape = C*H*W = (3*3) * 224 * 224
-        self.input_shape = input_shape
+        # input_shape = C*H*W = (3) * 224 * 224
+        self.adaptive_pool = nn.AdaptiveAvgPool2d((224, 224))
+        self.input_shape = (3,224,224)
         self.n_patches = n_patches
         self.n_heads = n_heads
-        assert input_shape[1] % n_patches == 0, "Input shape not entirely divisible by number of patches"
-        assert input_shape[2] % n_patches == 0, "Input shape not entirely divisible by number of patches"
+
         # patch_size = 224/7, 224/7 = 32,32
-        self.patch_size = (input_shape[1] / n_patches, input_shape[2] / n_patches)
-        # self.hidden_d = hidden_d
-        self.hidden_d = int(self.patch_size[0] * self.patch_size[1] //4)
+        self.patch_size = (self.input_shape[1] / n_patches, self.input_shape[2] / n_patches)
+        
 
         # 1) Linear mapper
         # input_d = Channel * patch_size^2 = (3*3)*32*32
-        self.input_d = int(input_shape[0] * self.patch_size[0] * self.patch_size[1])
+        self.input_d = int(self.input_shape[0] * self.patch_size[0] * self.patch_size[1])
+        # self.hidden_d = hidden_d
+        self.hidden_d = int(self.input_shape[1] * self.input_shape[2] // (self.n_patches ** 2))
         self.linear_mapper = nn.Linear(self.input_d, self.hidden_d)
 
         #
@@ -127,6 +128,7 @@ class MyViT(nn.Module):
     def forward(self, images):
         # Dividing images into patches
         n, c, w, h = images.shape
+        images = self.adaptive_pool(images)
         patches = images.reshape(n, self.n_patches ** 2, self.input_d)
 
         # Running linear layer for tokenization
@@ -148,6 +150,6 @@ class MyViT(nn.Module):
         # TRANSFORMER ENCODER ENDS   ###################################
 
         out = F.relu(out)
-        x = x.view(-1, )
-
-        return out
+        out_x = out.view(-1,self.n_patches **2,self.input_shape[1] // self.n_patches, self.input_shape[2] // self.n_patches  )
+        pass
+        return out_x

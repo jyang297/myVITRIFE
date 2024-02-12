@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from model.warplayer import warp
-from model.refine import *
+from model.refine_vit import *
 
 #################################
 ##
@@ -49,7 +49,7 @@ class IFBlock(nn.Module):
         )
         self.lastconv = nn.ConvTranspose2d(c, 5, 4, 2, 1)
         
-        self.scaleconv = nn.Conv2d(channel_vit_feature, out_channels=)
+        # self.scaleconv = nn.Conv2d(channel_vit_feature, out_channels=)
 
     def forward(self, x, flow, scale):
         if scale != 1:
@@ -73,12 +73,15 @@ class IFNet(nn.Module):
         self.block2 = IFBlock(13+4, c=90)
         self.block_tea = IFBlock(16+4, c=90)
         self.contextnet = Contextnet()
-        self.unet = Unet()
+        self.unet = Unet_VIT()
 
     def forward(self, x, scale=[4,2,1], timestep=0.5):
         img0 = x[:, :3]
         img1 = x[:, 3:6]
         gt = x[:, 6:] # In inference time, gt is None
+
+        # img --> img_vit_feature
+
         flow_list = []
         merged = []
         mask_list = []
@@ -115,6 +118,9 @@ class IFNet(nn.Module):
             if gt.shape[1] == 3:
                 loss_mask = ((merged[i] - gt).abs().mean(1, True) > (merged_teacher - gt).abs().mean(1, True) + 0.01).float().detach()
                 loss_distill += (((flow_teacher.detach() - flow_list[i]) ** 2).mean(1, True) ** 0.5 * loss_mask).mean()
+                
+                
+                
         c0 = self.contextnet(img0, flow[:, :2])
         c1 = self.contextnet(img1, flow[:, 2:4])
         tmp = self.unet(img0, img1, warped_img0, warped_img1, mask, flow, c0, c1)
